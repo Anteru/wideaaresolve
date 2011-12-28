@@ -163,22 +163,8 @@ struct Filters
 		return shader;
 	}
 
-	void Create (ID3D11Device* device, int width, int height)
+	void CreateResolutionDependent (ID3D11Device* device, int width, int height)
 	{
-#define MAKE_FILTER(sampleCount, name) filters [std::make_pair (sampleCount, name)] = CreateShader (device, sampleCount, name)
-		static const int sampleCounts [] = {1, 2, 4, 8};
-
-		for (int i = 0; i < 4; ++i) {
-			const int sampleCount = sampleCounts [i];
-			MAKE_FILTER(sampleCount, "Lanczos2D");
-			MAKE_FILTER(sampleCount, "Gaussian2D");
-			MAKE_FILTER(sampleCount, "Box2D");
-		}
-
-#undef MAKE_FILTER
-
-		copy = CreateShader (device, 1, "COPY");
-
 		D3D11_TEXTURE2D_DESC desc;
 		::ZeroMemory (&desc, sizeof (desc));
 
@@ -193,6 +179,24 @@ struct Filters
 
 		device->CreateTexture2D (&desc, nullptr, &resolveTexture);
 		device->CreateShaderResourceView (resolveTexture, nullptr, &resolveView);
+
+	}
+	
+	void Create (ID3D11Device* device)
+	{
+#define MAKE_FILTER(sampleCount, name) filters [std::make_pair (sampleCount, name)] = CreateShader (device, sampleCount, name)
+		static const int sampleCounts [] = {1, 2, 4, 8};
+
+		for (int i = 0; i < 4; ++i) {
+			const int sampleCount = sampleCounts [i];
+			MAKE_FILTER(sampleCount, "Lanczos2D");
+			MAKE_FILTER(sampleCount, "Gaussian2D");
+			MAKE_FILTER(sampleCount, "Box2D");
+		}
+
+#undef MAKE_FILTER
+
+		copy = CreateShader (device, 1, "COPY");
 
 		{
 			ID3DXBuffer* blob;
@@ -282,6 +286,12 @@ struct Filters
 		context->PSSetShaderResources (0, 1, &nullView);
 	}
 
+	void DestroyResolutionDependent ()
+	{
+		SAFE_RELEASE (resolveTexture);
+		SAFE_RELEASE (resolveView);
+	}
+
 	void Destroy ()
 	{
 		std::for_each (begin (shaders), end (shaders), [] (ID3D11PixelShader* s)
@@ -289,9 +299,6 @@ struct Filters
 
 		shaders.clear ();
 
-		SAFE_RELEASE (resolveTexture);
-		SAFE_RELEASE (resolveView);
-		
 		SAFE_RELEASE (quadVertexBuffer);
 		SAFE_RELEASE (quadVertexShader);
 		SAFE_RELEASE (quadLayout);
@@ -558,6 +565,7 @@ HRESULT CALLBACK OnD3D11CreateDevice( ID3D11Device* pd3dDevice, const DXGI_SURFA
 {
 	g_IntermediateTarget	= new IntermediateRenderTarget ();
 	g_Filters				= new Filters ();
+	g_Filters->Create (pd3dDevice);
 	g_DemoData				= new DemoDataSet ();
 	g_DemoData->Create (pd3dDevice);
 
@@ -587,7 +595,7 @@ HRESULT CALLBACK OnD3D11ResizedSwapChain( ID3D11Device* pd3dDevice, IDXGISwapCha
 	g_Camera.SetScalers (0.01f, 192.0f );
 	g_Camera.SetDrag (true);
 
-	g_Filters->Create (pd3dDevice, pBackBufferSurfaceDesc->Width,
+	g_Filters->CreateResolutionDependent (pd3dDevice, pBackBufferSurfaceDesc->Width,
 		pBackBufferSurfaceDesc->Height);
 
 	HRESULT hr;
@@ -617,14 +625,15 @@ void RenderText()
 	g_IntermediateTarget->colorTarget.texture->GetDesc (&desc);
 
 	::WCHAR intermediateBufferDesc [1024] = { 0 };
-	::wsprintf (intermediateBufferDesc, L"Backbuffer: %dx%d @ %d samples",
-		desc.Width, desc.Height, desc.SampleDesc.Count);
+	::wsprintf (intermediateBufferDesc, L"Backbuffer: %dx%d @ %d sample%c",
+		desc.Width, desc.Height, desc.SampleDesc.Count, desc.SampleDesc.Count > 1 ? L's' : L' ');
 
 	g_pTxtHelper->Begin();
 	g_pTxtHelper->SetInsertionPos( 5, 5 );
 	g_pTxtHelper->SetForegroundColor( D3DXCOLOR( 1.0f, 1.0f, 0.0f, 1.0f ) );
 	g_pTxtHelper->DrawTextLine( DXUTGetFrameStats( DXUTIsVsyncEnabled() ) );
 	g_pTxtHelper->DrawTextLine (intermediateBufferDesc);
+	g_pTxtHelper->DrawTextLine (L"Hold shift to slow down movement");
 	g_pTxtHelper->End();
 }
 
@@ -681,7 +690,7 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 void CALLBACK OnD3D11ReleasingSwapChain( void* pUserContext )
 {
 	if (g_IntermediateTarget) { g_IntermediateTarget->Destroy (); }
-	if (g_Filters) { g_Filters->Destroy (); }
+	if (g_Filters) { g_Filters->DestroyResolutionDependent (); }
 
 	
 	g_DialogResourceManager.OnD3D11ReleasingSwapChain();
@@ -695,6 +704,7 @@ void CALLBACK OnD3D11DestroyDevice( void* pUserContext )
 {
 	g_DemoData->Destroy ();
 	delete g_DemoData;
+	g_Filters->Destroy ();
 	delete g_Filters;
 	delete g_IntermediateTarget;
 
@@ -845,10 +855,10 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
 	g_SampleUI.Init( &g_DialogResourceManager );
 
 	g_HUD.SetCallback( OnGUIEvent );
-	int iY = 30;
+	int iY = 4;
 	int iYo = 26;
 	CDXUTComboBox* filterCombo;
-	g_HUD.AddComboBox (IDC_CHANGE_FILTER, 0, iY += iYo, 170, 22, 0, false, &filterCombo);
+	g_HUD.AddComboBox (IDC_CHANGE_FILTER, 0, iY, 170, 22, 0, false, &filterCombo);
 	filterCombo->AddItem (L"None", "H1");
 	filterCombo->AddItem (L"HW 2x", "H2");
 	filterCombo->AddItem (L"Box 2x", "B2");
