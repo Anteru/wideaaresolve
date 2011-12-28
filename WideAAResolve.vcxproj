@@ -406,10 +406,10 @@
     <ClCompile Include="WideFilter.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ResourceCompile Include="WideAAResolve.rc" />
   </ItemGroup>
   <ItemGroup>
     <CLInclude Include="resource.h" />
-    <ResourceCompile Include="EmptyProject11.rc" />
   </ItemGroup>
   <ItemGroup>
   </ItemGroup>
