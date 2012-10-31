@@ -1,5 +1,5 @@
 /**
-Copyright 2011, Mattaeus G. Chajdas. All rights reserved.
+Copyright 2011, Matthaeus G. Chajdas. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are
 permitted provided that the following conditions are met:
@@ -23,7 +23,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 The views and conclusions contained in the software and documentation are those of the
 authors and should not be interpreted as representing official policies, either expressed
-or implied, of Mattaeus G. Chajdas.
+or implied, of Matthaeus G. Chajdas.
 */
 
 #include "DXUT.h"
@@ -66,7 +66,7 @@ struct IntermediateRenderTarget
 		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
 		desc.SampleDesc.Count = sampleCount;
-		desc.SampleDesc.Quality = D3D11_STANDARD_MULTISAMPLE_PATTERN;
+		desc.SampleDesc.Quality = static_cast<UINT> (D3D11_STANDARD_MULTISAMPLE_PATTERN);
 		desc.MipLevels = 1;
 		desc.ArraySize = 1;
 
@@ -107,15 +107,7 @@ struct Filters
 
 	std::vector<ID3D11PixelShader*>	shaders;
 
-	ID3D11Buffer*		quadVertexBuffer;
 	ID3D11VertexShader*	quadVertexShader;
-	ID3D11InputLayout*	quadLayout;
-
-	struct VF_Quad
-	{
-		XMVECTOR position;
-		XMFLOAT2 uv;
-	};
 
 	ID3D11PixelShader* CreateShader (ID3D11Device* device, const int sampleCount, 
 		const char* filter)
@@ -133,7 +125,7 @@ struct Filters
 		}
 
 		char MSAASampleCountString [2] = {0};
-		::sprintf (MSAASampleCountString, "%d", sampleCount);
+		::sprintf_s (MSAASampleCountString, "%d", sampleCount);
 
 		D3DXMACRO sampleCountMacro;
 		sampleCountMacro.Name = "MSAA_SAMPLES";
@@ -185,6 +177,7 @@ struct Filters
 	void Create (ID3D11Device* device)
 	{
 #define MAKE_FILTER(sampleCount, name) filters [std::make_pair (sampleCount, name)] = CreateShader (device, sampleCount, name)
+		
 		static const int sampleCounts [] = {1, 2, 4, 8};
 
 		for (int i = 0; i < 4; ++i) {
@@ -214,42 +207,6 @@ struct Filters
 			device->CreateVertexShader (blob->GetBufferPointer (),
 				blob->GetBufferSize (), nullptr, &quadVertexShader);
 			
-			{
-				static const D3D11_INPUT_ELEMENT_DESC desc [] = {
-					{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-					{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
-				};
-
-				device->CreateInputLayout (desc, 2,
-					blob->GetBufferPointer (), blob->GetBufferSize (),
-					&quadLayout);
-			}
-
-			static const VF_Quad quad [] = {
-				{ XMVectorSet (-1, -1, 0, 1), XMFLOAT2 (0, 0) },
-				{ XMVectorSet (-1, 1, 0, 1), XMFLOAT2 (0, 1) },
-				{ XMVectorSet (1, -1, 0, 1), XMFLOAT2 (1, 0) },
-				
-				{ XMVectorSet (1, 1, 0, 1), XMFLOAT2 (1, 1) },
-				{ XMVectorSet (1, -1, 0, 1), XMFLOAT2 (1, 0) },
-				{ XMVectorSet (-1, 1, 0, 1), XMFLOAT2 (0, 1) }
-			};
-
-			{
-				D3D11_BUFFER_DESC desc;
-				::ZeroMemory (&desc, sizeof (desc));
-
-				desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-				desc.ByteWidth = sizeof (VF_Quad) * 6;
-				desc.Usage = D3D11_USAGE_IMMUTABLE;
-
-				D3D11_SUBRESOURCE_DATA data;
-				::ZeroMemory (&data, sizeof (data));
-				data.pSysMem = quad;
-
-				device->CreateBuffer (&desc, &data, &quadVertexBuffer);
-			}
-
 			SAFE_RELEASE (blob);
 		}
 	}
@@ -269,18 +226,14 @@ struct Filters
 			shader = filters [std::make_pair (sampleCount, filter)];
 		}
 
-		context->IASetInputLayout (quadLayout);
 		context->IASetPrimitiveTopology (D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		const ::UINT stride = sizeof (VF_Quad);
-		const ::UINT offset = 0;
-		context->IASetVertexBuffers (0, 1, &quadVertexBuffer, &stride, &offset);
-
+		
 		context->PSSetShaderResources (0, 1, &sourceView);
 
 		context->VSSetShader (quadVertexShader, nullptr, 0);
 		context->PSSetShader (shader, nullptr, 0);
 
-		context->Draw (6, 0);
+		context->Draw (3, 0);
 
 		ID3D11ShaderResourceView* nullView = nullptr;
 		context->PSSetShaderResources (0, 1, &nullView);
@@ -299,9 +252,7 @@ struct Filters
 
 		shaders.clear ();
 
-		SAFE_RELEASE (quadVertexBuffer);
 		SAFE_RELEASE (quadVertexShader);
-		SAFE_RELEASE (quadLayout);
 	}
 };
 
@@ -394,8 +345,8 @@ struct DemoDataSet
 		static const float BORDER = 0.1f;
 
 		// We have the data, build the grid now
-		for (int y = 0; y < desc.Height; ++y) {
-			for (int x = 0; x < desc.Width; ++x) {
+		for (int y = 0; y < static_cast<int> (desc.Height); ++y) {
+			for (int x = 0; x < static_cast<int> (desc.Width); ++x) {
 				const auto value = data [y * desc.Width + x];
 
 				const float height = 8.0f + 32.0f * static_cast<float>(255 - value.g) / 255.0f;
@@ -430,7 +381,8 @@ struct DemoDataSet
 		{
 			D3D11_BUFFER_DESC desc;
 			::ZeroMemory (&desc, sizeof (desc));
-			desc.ByteWidth = sizeof (VF_PosNormalColor) * vertexBufferData.size ();
+			desc.ByteWidth = static_cast<UINT> (sizeof (VF_PosNormalColor)
+				* vertexBufferData.size ());
 			desc.Usage = D3D11_USAGE_IMMUTABLE;
 			desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 			
@@ -610,7 +562,6 @@ HRESULT CALLBACK OnD3D11ResizedSwapChain( ID3D11Device* pd3dDevice, IDXGISwapCha
 	return S_OK;
 }
 
-
 //--------------------------------------------------------------------------------------
 // Handle updates to the scene.  This is called regardless of which D3D API is used
 //--------------------------------------------------------------------------------------
@@ -619,7 +570,7 @@ void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext 
 	g_Camera.FrameMove( fElapsedTime );
 }
 
-void RenderText()
+void RenderText(const float frameTime)
 {
 	D3D11_TEXTURE2D_DESC desc;
 	g_IntermediateTarget->colorTarget.texture->GetDesc (&desc);
@@ -627,11 +578,14 @@ void RenderText()
 	::WCHAR intermediateBufferDesc [1024] = { 0 };
 	::wsprintf (intermediateBufferDesc, L"Backbuffer: %dx%d @ %d sample%c",
 		desc.Width, desc.Height, desc.SampleDesc.Count, desc.SampleDesc.Count > 1 ? L's' : L' ');
+	::WCHAR timing [1024] = { 0 };
+	::swprintf_s (timing, L"%f ms", frameTime * 1000);
 
 	g_pTxtHelper->Begin();
 	g_pTxtHelper->SetInsertionPos( 5, 5 );
 	g_pTxtHelper->SetForegroundColor( D3DXCOLOR( 1.0f, 1.0f, 0.0f, 1.0f ) );
 	g_pTxtHelper->DrawTextLine( DXUTGetFrameStats( DXUTIsVsyncEnabled() ) );
+	g_pTxtHelper->DrawTextLine (timing);
 	g_pTxtHelper->DrawTextLine (intermediateBufferDesc);
 	g_pTxtHelper->DrawTextLine (L"Hold shift to slow down movement");
 	g_pTxtHelper->End();
@@ -669,17 +623,19 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 
 	pd3dImmediateContext->ClearRenderTargetView( pRTV, clearColor );
 	pd3dImmediateContext->ClearDepthStencilView( pDSV, D3D11_CLEAR_DEPTH, 1.0, 0 );
-
+	
+	DXUT_BeginPerfEvent(DXUT_PERFEVENTCOLOR2, L"Resolve");
 	g_Filters->Resolve (pd3dImmediateContext,
 		g_IntermediateTarget->colorTarget.texture,
 		g_IntermediateTarget->colorTarget.srv,
 		g_Filter,
 		g_SampleCount);
-
+	DXUT_EndPerfEvent ();
+	
 	DXUT_BeginPerfEvent( DXUT_PERFEVENTCOLOR, L"HUD / Stats" );
 		g_HUD.OnRender( fElapsedTime );
 		g_SampleUI.OnRender( fElapsedTime );
-		RenderText();
+		RenderText (fElapsedTime);
 	DXUT_EndPerfEvent();
 }
 
@@ -856,9 +812,8 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
 
 	g_HUD.SetCallback( OnGUIEvent );
 	int iY = 4;
-	int iYo = 26;
 	CDXUTComboBox* filterCombo;
-	g_HUD.AddComboBox (IDC_CHANGE_FILTER, 0, iY, 170, 22, 0, false, &filterCombo);
+	g_HUD.AddComboBox (IDC_CHANGE_FILTER, 0, iY, 170, 26, 0, false, &filterCombo);
 	filterCombo->AddItem (L"None", "H1");
 	filterCombo->AddItem (L"HW 2x", "H2");
 	filterCombo->AddItem (L"Box 2x", "B2");

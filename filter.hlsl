@@ -4,27 +4,19 @@
 	Texture2D
 #endif
 	source;
-
-struct VS_INPUT
-{
-    float4 Position     : POSITION;
-	float2 UV			: TEXCOORD0;
-};
-
+	
 struct VS_OUTPUT
 {
     float4 Position     : SV_POSITION;
 	float2 UV			: TEXCOORD0;
 };
 
-VS_OUTPUT VS_Main (VS_INPUT input)
+VS_OUTPUT VS_Main (uint id : SV_VertexID)
 {
     VS_OUTPUT Output;
-
-    Output.Position 	= input.Position;
-	Output.UV			= input.UV;
-    
-    return Output;    
+    Output.UV = float2((id << 1) & 2, id & 2);
+    Output.Position = float4(Output.UV * float2(2,-2) + float2(-1,1), 0, 1);
+    return Output;
 }
 
 #include "fw.hlsl"
