@@ -332,7 +332,10 @@ struct DemoDataSet
 		D3D11_MAPPED_SUBRESOURCE mapping;
 		context->Map (intermediateTexture, D3D11CalcSubresource (0, 0, 0),
 			D3D11_MAP_READ, 0, &mapping);
-		::memcpy (&data[0], mapping.pData, sizeof (XMCOLOR) * data.size ());
+		for (unsigned y = 0; y < desc.Height; ++y) {
+			::memcpy (&data[0] + desc.Width * y,
+				static_cast<const unsigned char*> (mapping.pData) + mapping.RowPitch * y, sizeof (XMCOLOR) * desc.Width);
+		}
 		context->Unmap (intermediateTexture, D3D11CalcSubresource (0, 0, 0));
 		SAFE_RELEASE (context);
 
